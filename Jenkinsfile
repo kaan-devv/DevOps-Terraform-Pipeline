@@ -6,7 +6,7 @@ pipeline {
         AWS_DEFAULT_REGION = 'us-east-1'
         ENVANTER_DOSYASI = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket-xyz'
-        JIRA_SITE = 'https://JIRA-SITENIZ.atlassian.net'
+        JIRA_SITE = 'https://kaanylmz.atlassian.net'
         JIRA_ISSUE_KEY = ""
     }
 
