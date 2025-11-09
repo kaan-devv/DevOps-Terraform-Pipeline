@@ -20,7 +20,7 @@ pipeline {
         JIRA_SITE = "kaanylmz.atlassian.net"
         S3_BUCKET_NAME = "kaan-inventory-bucket"
         INVENTORY_FILE = 'inventory.json'
-        JIRA_TRANSITION_ID_IN_PROGRESS = "11"
+        JIRA_TRANSITION_ID_IN_PROGRESS = "21"
         JIRA_TRANSITION_ID_DONE = "31"
     }
 
