@@ -41,9 +41,7 @@ pipeline {
                     def issueKey = extractJiraIssueKey(commitMessage)
                     
                     if (!issueKey) {
-
-                        echo "No Jira issue key found in commit message."
-                        return
+                        error("FATAL: No Jira issue key found in commit message. Commit format must be '[KEY-123] ...'")
                     }
 
                     env.JIRA_ISSUE_KEY = issueKey
