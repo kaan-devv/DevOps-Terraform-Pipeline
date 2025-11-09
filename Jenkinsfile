@@ -27,21 +27,18 @@ pipeline {
                     def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMsg}"
 
-                    def match = (commitMsg =~ /\[([A-Z]+-\d+)\]/)
-                    if (match.find()) {
-                        env.JIRA_ISSUE_KEY = match.group(1)
+                    // ✅ safer regex (string only)
+                    def issueKey = (commitMsg =~ /\[([A-Z]+-\d+)\]/).findAll()?.first()?.replaceAll(/[\[\]]/, "")
+                    if (issueKey) {
+                        env.JIRA_ISSUE_KEY = issueKey
                         echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
                         jiraSendBuildInfo(
                             site: env.JIRA_SITE,
-                            environmentId: "development",
-                            environmentName: "Development",
                             pipelineId: env.JOB_NAME,
                             buildNumber: env.BUILD_NUMBER,
-                            revision: env.GIT_COMMIT ?: "N/A",
-                            issues: [env.JIRA_ISSUE_KEY],
-                            buildDisplayName: "#${env.BUILD_NUMBER}",
-                            state: "IN_PROGRESS"
+                            state: 'in_progress',
+                            issueKeys: [env.JIRA_ISSUE_KEY]
                         )
                     } else {
                         echo "No Jira issue key found in the commit message. Skipping Jira step."
@@ -80,14 +77,11 @@ pipeline {
                     if (env.JIRA_ISSUE_KEY?.trim()) {
                         jiraSendDeploymentInfo(
                             site: env.JIRA_SITE,
-                            environmentId: "development",
-                            environmentName: "Development",
-                            environmentType: "development",
                             pipelineId: env.JOB_NAME,
                             buildNumber: env.BUILD_NUMBER,
-                            displayName: "Terraform Apply",
-                            issues: [env.JIRA_ISSUE_KEY],
-                            state: "SUCCESSFUL"
+                            environmentType: 'development',
+                            state: 'successful',
+                            issueKeys: [env.JIRA_ISSUE_KEY]
                         )
                     } else {
                         echo "No Jira issue key found. Skipping Jira deployment update."
