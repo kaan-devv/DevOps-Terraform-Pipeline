@@ -1,3 +1,12 @@
+@NonCPS
+def extractJiraIssueKey(String commitMsg) {
+    def matcher = (commitMsg =~ /\[([A-Z]+-\d+)\]/)
+    if (matcher.find()) {
+        return matcher.group(1)
+    }
+    return null
+}
+
 pipeline {
     agent any
 
@@ -7,7 +16,7 @@ pipeline {
         INVENTORY_FILE = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
         JIRA_SITE = 'kaanylmz.atlassian.net'
-        JIRA_SECRET = 'jira-secret-cloud' // Jira Cloud secret ID
+        JIRA_SECRET = 'jira-secret-cloud'
         JIRA_ISSUE_KEY = ""
     }
 
@@ -27,9 +36,10 @@ pipeline {
                     def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMsg}"
 
-                    def matcher = (commitMsg =~ /\[([A-Z]+-\d+)\]/)
-                    if (matcher.find()) {
-                        env.JIRA_ISSUE_KEY = matcher.group(1)
+                    // Use NonCPS-safe function
+                    def issueKey = extractJiraIssueKey(commitMsg)
+                    if (issueKey) {
+                        env.JIRA_ISSUE_KEY = issueKey
                         echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
                         jiraSendBuildInfo(
