@@ -2,7 +2,10 @@
 def extractJiraIssueKey(String commitMsg) {
     if (!commitMsg) return null
     commitMsg = commitMsg.trim().replaceAll("\\r|\\n", "")
-    def matcher = (commitMsg =~ /\b([A-Z]+-\d+)\b/)
+    
+
+    def matcher = (commitMsg =~ /\[([A-Z]+-\d+)\]/) 
+    
     if (matcher.find()) {
         return matcher.group(1)
     }
@@ -45,7 +48,7 @@ pipeline {
 
                     env.JIRA_ISSUE_KEY = issueKey
                     echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
-                    
+
                     withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
                         def response = sh(
