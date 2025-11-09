@@ -21,36 +21,28 @@ pipeline {
 
         stage('2. Jira: Update to In Progress') {
             steps {
-                script {
-                    echo "Updating Jira task to 'In Progress'..."
-                    
-                    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
-                    echo "Detected Commit Message: ${commitMsg}"
-                    
-                    try {
-                        if (commitMsg.contains('[') && commitMsg.contains(']')) {
-                            def parca1 = commitMsg.split('\\[', 2)[1]
-                            def jiraKodu = parca1.split('\\]', 2)[0]
+                withJiraSite(siteName: env.JIRA_SITE, credentialsId: 'jira-token') {
+                    script {
+                        echo "Updating Jira task to 'In Progress'..."
+                        
+                        def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
+                        echo "Detected Commit Message: ${commitMsg}"
 
-                            if (jiraKodu.matches('^[A-Z]+-\\d+$')) {
-                                env.JIRA_ISSUE_KEY = jiraKodu
-                                echo "Jira Key Found: ${env.JIRA_ISSUE_KEY}"
-                                
-                                jiraTransitionIssue(
-                                    issueKey: env.JIRA_ISSUE_KEY,
-                                    siteName: env.JIRA_SITE,
-                                    transitionName: 'In Progress', 
-                                    comment: "Pipeline started. Running terraform apply...",
-                                    credentialsId: 'jira-token'
-                                )
-                            } else {
-                                echo "Jira key format ([PROJ-123]) not found. Skipping Jira step."
-                            }
+                        def matcher = (commitMsg =~ '\\[([A-Z]+-\\d+)\\]')
+                        
+                        if (matcher.find()) {
+                            env.JIRA_ISSUE_KEY = matcher[0][1]
+                            echo "Jira Key Found: ${env.JIRA_ISSUE_KEY}"
+
+                            jiraTransitionIssue(
+                                issueKey: env.JIRA_ISSUE_KEY,
+                                transitionName: 'In Progress'
+                            )
+                            echo "Jira task ${env.JIRA_ISSUE_KEY} transitioned to In Progress."
+                            
                         } else {
-                            echo "Jira issue key (e.g., [JIRA-101]) not found in commit message. Skipping Jira step."
+                            echo "Jira key format ([PROJ-123]) not found. Skipping Jira step."
                         }
-                    } catch (Exception e) {
-                        echo "Error while splitting Jira key: ${e.message}. Skipping step."
                     }
                 }
             }
@@ -75,20 +67,22 @@ pipeline {
 
         stage('5. Jira: Update to Done') {
             steps {
-                script {
-                    echo "Updating Jira task to 'Done'..."
-                    
-                    if (env.JIRA_ISSUE_KEY && !env.JIRA_ISSUE_KEY.isEmpty()) {
-                        echo "Updating Jira Key ${env.JIRA_ISSUE_KEY} to 'Done'."
-                        jiraTransitionIssue(
-                            issueKey: env.JIRA_ISSUE_KEY,
-                            siteName: env.JIRA_SITE,
-                            transitionName: 'Done',
-                            comment: "Pipeline finished successfully. Changes applied. Panel updated.",
-                            credentialsId: 'jira-token'
-                        )
-                    } else {
-                        echo "No Jira issue key was tracked. Skipping this step."
+                withJiraSite(siteName: env.JIRA_SITE, credentialsId: 'jira-token') {
+                    script {
+                        echo "Updating Jira task to 'Done'..."
+                        
+                        if (env.JIRA_ISSUE_KEY && !env.JIRA_ISSUE_KEY.isEmpty()) {
+                            echo "Updating Jira Key ${env.JIRA_ISSUE_KEY} to 'Done'."
+                            
+                            jiraTransitionIssue(
+                                issueKey: env.JIRA_ISSUE_KEY,
+                                transitionName: 'Done'
+                            )
+                            echo "Jira task ${env.JIRA_ISSUE_KEY} transitioned to Done."
+                            
+                        } else {
+                            echo "No Jira issue key was tracked. Skipping this step."
+                        }
                     }
                 }
             }
