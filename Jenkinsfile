@@ -3,10 +3,11 @@ def extractJiraIssueKey(String commitMsg) {
     if (!commitMsg) {
         return null
     }
+    // Commit mesajından (örn: INV-101) Jira issue key yakalar — büyük/küçük harf farkı gözetmez
     commitMsg = commitMsg.trim().replaceAll("\\r|\\n", "")
-    def matcher = (commitMsg =~ /\b([A-Z]+-\d+)\b/)
+    def matcher = (commitMsg =~ /(?i)\b([A-Z]+-\d+)\b/)
     if (matcher.find()) {
-        return matcher.group(1)
+        return matcher.group(1).toUpperCase()
     }
     return null
 }
@@ -15,10 +16,16 @@ pipeline {
     agent any
 
     environment {
-        JIRA_API_TOKEN = credentials('jira-secret-cloud') 
+        //  Jira bilgileri
         JIRA_SITE = "kaanylmz.atlassian.net"
+        JIRA_EMAIL = "kaanylmz.dev@gmail.com"
+        JIRA_API_TOKEN = credentials('jira-secret-cloud')
+
+        //  AWS bilgileri
         S3_BUCKET_NAME = "kaan-inventory-bucket"
-        INVENTORY_FILE = 'inventory.json'
+        INVENTORY_FILE = "inventory.json"
+
+        //  Jira geçiş ID'leri
         JIRA_TRANSITION_ID_IN_PROGRESS = "21"
         JIRA_TRANSITION_ID_DONE = "31"
     }
@@ -39,21 +46,28 @@ pipeline {
                     echo "Commit message: ${commitMessage}"
 
                     def issueKey = extractJiraIssueKey(commitMessage)
-                    
                     if (issueKey) {
                         env.JIRA_ISSUE_KEY = issueKey
                         echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
-                        
-                        sh """
-                            curl -s -X POST \
-                            -H "Authorization: Bearer ${JIRA_API_TOKEN}" \
+
+                        def response = sh(script: """
+                            curl -s -o response.json -w "%{http_code}" \
+                            -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+                            -H "Accept: application/json" \
                             -H "Content-Type: application/json" \
                             --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_IN_PROGRESS}" } }' \
                             https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions
-                        """
+                        """, returnStdout: true).trim()
+
+                        echo "Jira In Progress transition response code: ${response}"
+                        sh "cat response.json || true"
+
+                        if (response != "204") {
+                            error("Jira transition to In Progress failed. Check credentials or transition ID.")
+                        }
                     } else {
-                        echo "⚠️ No Jira issue key found in commit message."
+                        echo "No Jira issue key found in commit message."
                     }
                 }
             }
@@ -74,7 +88,6 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
                     echo "Generating current infrastructure inventory..."
-                    
                     sh '''
                         terraform output -json > ${INVENTORY_FILE}
                         aws s3 cp ${INVENTORY_FILE} s3://${S3_BUCKET_NAME}/${INVENTORY_FILE}
@@ -90,13 +103,21 @@ pipeline {
             }
             steps {
                 echo "Moving issue ${env.JIRA_ISSUE_KEY} to Done..."
-                sh """
-                    curl -s -X POST \
-                    -H "Authorization: Bearer ${JIRA_API_TOKEN}" \
+                def response = sh(script: """
+                    curl -s -o response.json -w "%{http_code}" \
+                    -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+                    -H "Accept: application/json" \
                     -H "Content-Type: application/json" \
                     --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_DONE}" } }' \
                     https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions
-                """
+                """, returnStdout: true).trim()
+
+                echo "Jira Done transition response code: ${response}"
+                sh "cat response.json || true"
+
+                if (response != "204") {
+                    error("Jira transition to Done failed. Check credentials or transition ID.")
+                }
             }
         }
     }
