@@ -7,7 +7,6 @@ pipeline {
         INVENTORY_FILE = 'inventory.json'
         JIRA_TRANSITION_ID_IN_PROGRESS = "21"
         JIRA_TRANSITION_ID_DONE = "31"
-        JIRA_ISSUE_KEY = ""
     }
 
     stages {
@@ -27,26 +26,22 @@ pipeline {
                         script: "git log -1 --pretty=%B | grep -oP '\\[\\K[A-Z]+-[0-9]+(?=\\])' || true",
                         returnStdout: true
                     ).trim()
-                  
 
-                    echo "Commit message was read."
-                    
                     if (!issueKey) {
                         error("FATAL: No Jira issue key found in commit message.")
                     }
 
-                    env.JIRA_ISSUE_KEY = issueKey
-                    echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}" 
+                    echo "Detected Jira issue: ${issueKey}"
 
                     withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
-                        echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
+                        echo "Moving issue ${issueKey} to In Progress..."
                         def response = sh(
                             script: """curl -s -o response.json -w "%{http_code}" \
                             -u "$JIRA_USER:$JIRA_TOKEN" \
                             -H "Accept: application/json" \
                             -H "Content-Type: application/json" \
                             --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_IN_PROGRESS}" } }' \
-                            https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions""",
+                            https://${JIRA_SITE}/rest/api/3/issue/${issueKey}/transitions""",
                             returnStdout: true
                         ).trim()
 
@@ -87,20 +82,27 @@ pipeline {
         }
 
         stage('5. Jira: Move to Done') {
-            when {
-                expression { env.JIRA_ISSUE_KEY?.trim() }
-            }
             steps {
                 script {
+                    def issueKey = sh(
+                        script: "git log -1 --pretty=%B | grep -oP '\\[\\K[A-Z]+-[0-9]+(?=\\])' || true",
+                        returnStdout: true
+                    ).trim()
+
+                    if (!issueKey) {
+                        echo "No Jira issue key found, skipping 'Done' transition."
+                        return
+                    }
+
                     withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
-                        echo "Moving issue ${env.JIRA_ISSUE_KEY} to Done..."
+                        echo "Moving issue ${issueKey} to Done..."
                         def response = sh(
                             script: """curl -s -o response.json -w "%{http_code}" \
                             -u "$JIRA_USER:$JIRA_TOKEN" \
                             -H "Accept: application/json" \
                             -H "Content-Type: application/json" \
                             --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_DONE}" } }' \
-                            https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions""",
+                            https://${JIRA_SITE}/rest/api/3/issue/${issueKey}/transitions""",
                             returnStdout: true
                         ).trim()
 
