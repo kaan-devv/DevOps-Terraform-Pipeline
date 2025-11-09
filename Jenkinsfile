@@ -7,7 +7,7 @@ pipeline {
         INVENTORY_FILE = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
         JIRA_SITE = 'kaanylmz.atlassian.net'
-        JIRA_SECRET = 'jira-secret-cloud' 
+        JIRA_SECRET = 'jira-secret-cloud'
         JIRA_ISSUE_KEY = ""
     }
 
@@ -20,7 +20,7 @@ pipeline {
             }
         }
 
-        stage('2. Jira: Pipeline Started') {
+        stage('2. Jira: Send Build Info') {
             steps {
                 script {
                     echo "Extracting Jira issue key from commit message..."
@@ -32,10 +32,16 @@ pipeline {
                         env.JIRA_ISSUE_KEY = match.group(1)
                         echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
-                        jiraAddComment(
+                        jiraSendBuildInfo(
                             site: env.JIRA_SITE,
-                            idOrKey: env.JIRA_ISSUE_KEY,
-                            comment: "🚀 Jenkins pipeline has started. Terraform apply is now running..."
+                            environmentId: "development",
+                            environmentName: "Development",
+                            pipelineId: env.JOB_NAME,
+                            buildNumber: env.BUILD_NUMBER,
+                            revision: env.GIT_COMMIT ?: "N/A",
+                            issues: [env.JIRA_ISSUE_KEY],
+                            buildDisplayName: "#${env.BUILD_NUMBER}",
+                            state: "IN_PROGRESS"
                         )
                     } else {
                         echo "No Jira issue key found in the commit message. Skipping Jira step."
@@ -68,17 +74,23 @@ pipeline {
             }
         }
 
-        stage('5. Jira: Pipeline Completed') {
+        stage('5. Jira: Send Deployment Info') {
             steps {
                 script {
                     if (env.JIRA_ISSUE_KEY?.trim()) {
-                        jiraAddComment(
+                        jiraSendDeploymentInfo(
                             site: env.JIRA_SITE,
-                            idOrKey: env.JIRA_ISSUE_KEY,
-                            comment: "✅ Jenkins pipeline has completed successfully. Terraform apply and S3 upload are done."
+                            environmentId: "development",
+                            environmentName: "Development",
+                            environmentType: "development",
+                            pipelineId: env.JOB_NAME,
+                            buildNumber: env.BUILD_NUMBER,
+                            displayName: "Terraform Apply",
+                            issues: [env.JIRA_ISSUE_KEY],
+                            state: "SUCCESSFUL"
                         )
                     } else {
-                        echo "No Jira issue key found. Skipping Jira final update."
+                        echo "No Jira issue key found. Skipping Jira deployment update."
                     }
                 }
             }
