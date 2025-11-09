@@ -5,8 +5,8 @@ pipeline {
         AWS_CREDS = credentials('aws-creds')
         AWS_DEFAULT_REGION = 'us-east-1'
         ENVANTER_DOSYASI = 'inventory.json'
-        S3_BUCKET_NAME = 's3://kaan-inventory-bucket' 
-        JIRA_SITE = 'https://kaanylmz.atlassian.net' 
+        S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
+        JIRA_SITE = 'https://kaanylmz.atlassian.net'
         JIRA_ISSUE_KEY = ""
     }
 
@@ -29,6 +29,7 @@ pipeline {
                     
                     try {
                         if (commitMsg.contains('[') && commitMsg.contains(']')) {
+                        
                             def parca1 = commitMsg.split('\\[', 2)[1]
                             def jiraKodu = parca1.split('\\]', 2)[0]
 
