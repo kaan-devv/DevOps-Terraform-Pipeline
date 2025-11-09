@@ -5,7 +5,7 @@ pipeline {
         AWS_CREDS = credentials('aws-creds')
         AWS_DEFAULT_REGION = 'us-east-1'
         ENVANTER_DOSYASI = 'inventory.json'
-        S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
+        S3_BUCKET_NAME = 's3://kaan-inventory-bucket' 
         JIRA_SITE = 'https://kaanylmz.atlassian.net' 
         JIRA_ISSUE_KEY = ""
     }
@@ -23,14 +23,14 @@ pipeline {
             steps {
                 script {
                     echo "Jira görevi 'In Progress' (Yapılıyor) olarak güncelleniyor..."
-                    
+                
                     def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
                     echo "Algılanan Commit Mesajı: ${commitMsg}"
                     
-                    def matcher = commitMsg.find("\\[([A-Z]+-\\d+)\\]")
-                    
-                    if (matcher) {
-                        env.JIRA_ISSUE_KEY = matcher[1]
+                    def matcher = (commitMsg =~ "\\[([A-Z]+-\\d+)\\]")
+    
+                    if (matcher.find()) {
+                        env.JIRA_ISSUE_KEY = matcher[0][1] 
                         echo "Jira Kodu Bulundu: ${env.JIRA_ISSUE_KEY}"
                         
                         jiraTransitionIssue(
