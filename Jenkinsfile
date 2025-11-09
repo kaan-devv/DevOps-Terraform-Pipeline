@@ -31,36 +31,33 @@ pipeline {
 
         stage('2. Jira: Move to In Progress') {
             steps {
-                script {
-                    echo "Extracting Jira issue key from commit message..."
-                    def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "Commit message: ${commitMessage}"
+                
+                withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
+                    script {
+                        echo "Extracting Jira issue key from commit message..."
+                        def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                        echo "Commit message: ${commitMessage}"
 
-                    def issueKey = extractJiraIssueKey(commitMessage)
-                    
-                    if (!issueKey) {
-                        echo "No Jira issue key found in commit message."
-                        return
-                    }
+                        def issueKey = extractJiraIssueKey(commitMessage)
+                        
+                        if (!issueKey) {
+                            echo "No Jira issue key found in commit message."
+                            return
+                        }
 
-                    env.JIRA_ISSUE_KEY = issueKey
-                    echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
-
-                    
-                    withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
+                        env.JIRA_ISSUE_KEY = issueKey
+                        echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
-                        def response = sh(
-                            script: """curl -s -o response.json -w "%{http_code}" \
+                        
+                        sh """
+                            curl -s -o response.json -w "%{http_code}" \
                             -u "$JIRA_USER:$JIRA_TOKEN" \
                             -H "Accept: application/json" \
                             -H "Content-Type: application/json" \
                             --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_IN_PROGRESS}" } }' \
-                            https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions""",
-                            returnStdout: true
-                        ).trim()
-
-                        echo "Jira In Progress transition response code: ${response}"
-                        sh 'cat response.json || true'
+                            https://${JIRA_SITE}/rest/api/3/issue/${env.JIRA_ISSUE_KEY}/transitions
+                        """
+                        def response = sh(script: 'cat response.json || true', returnStdout: true).trim()
 
                         if (response != "204") {
                             error("Jira transition to In Progress failed. Check credentials or transition ID.")
@@ -100,8 +97,8 @@ pipeline {
                 expression { env.JIRA_ISSUE_KEY?.trim() }
             }
             steps {
-                script { 
-                    withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
+                    script {
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to Done..."
                         def response = sh(
                             script: """curl -s -o response.json -w "%{http_code}" \
