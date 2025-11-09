@@ -1,20 +1,4 @@
-@NonCPS
-def extractJiraIssueKey(String commitMsg) {
-    if (!commitMsg) return null
-    
-  
-    def cleanMsg = commitMsg.replaceAll("\\r|\\n", " ").trim()
-    
-    
-    def matcher = (cleanMsg =~ /\[([A-Z]+-[0-9]+)\]/) 
-    
-    if (matcher.find()) {
-        return matcher.group(1) 
-    }
-    return null
-}
-
-
+// En üstteki @NonCPS fonksiyon bloğu tamamen kaldırıldı.
 pipeline {
     agent any
 
@@ -22,7 +6,7 @@ pipeline {
         JIRA_SITE = "kaanylmz.atlassian.net"
         S3_BUCKET_NAME = "kaan-inventory-bucket"
         INVENTORY_FILE = 'inventory.json'
-        JIRA_TRANSIAITIO_ID_IN_PROGRESS = "21"
+        JIRA_TRANSITION_ID_IN_PROGRESS = "21" 
         JIRA_TRANSITION_ID_DONE = "31"
         JIRA_ISSUE_KEY = ""
     }
@@ -42,8 +26,15 @@ pipeline {
                     def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMessage}"
 
-                
-                    def issueKey = extractJiraIssueKey(commitMessage)
+                    
+                    def cleanMsg = commitMessage.replaceAll("\\r|\\n", " ").trim()
+                    def matcher = (cleanMsg =~ /\[([A-Z]+-[0-9]+)\]/) 
+                    
+                    def issueKey = null
+                    if (matcher.find()) {
+                        issueKey = matcher.group(1) 
+                    }
+                  
                     
                     if (!issueKey) {
                         error("FATAL: No Jira issue key found in commit message. Commit format must be '[KEY-123] ...'")
