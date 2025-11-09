@@ -44,4 +44,3 @@ output "test_server_details" {
   }
 }
 */
-# test
