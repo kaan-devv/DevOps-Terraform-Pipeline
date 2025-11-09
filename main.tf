@@ -25,7 +25,7 @@ output "prod_server_details" {
   }
 }
 
-/*
+
 resource "aws_instance" "test_server" {
   ami           = "ami-080e1f13689e07408"
   instance_type = "t3.small" 
@@ -43,4 +43,4 @@ output "test_server_details" {
     public_ip     = aws_instance.test_server.public_ip
   }
 }
-*/
+
