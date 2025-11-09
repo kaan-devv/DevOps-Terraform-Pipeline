@@ -4,13 +4,12 @@ def extractJiraIssueKey(String commitMsg) {
         return null
     }
     commitMsg = commitMsg.trim().replaceAll("\\r|\\n", "")
-    def matcher = (commitMsg =~ /([A-Z]+-\d+)/)
+    def matcher = (commitMsg =~ /\b([A-Z]+-\d+)\b/)
     if (matcher.find()) {
         return matcher.group(1)
     }
     return null
 }
-
 
 pipeline {
     agent any
