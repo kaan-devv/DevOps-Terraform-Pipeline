@@ -13,7 +13,6 @@ pipeline {
     agent any
 
     environment {
-        JIRA_API_TOKEN = credentials('jira-token') 
         JIRA_SITE = "kaanylmz.atlassian.net"
         S3_BUCKET_NAME = "kaan-inventory-bucket"
         INVENTORY_FILE = 'inventory.json'
@@ -47,6 +46,7 @@ pipeline {
                     env.JIRA_ISSUE_KEY = issueKey
                     echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
+                    
                     withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
                         def response = sh(
@@ -66,7 +66,7 @@ pipeline {
                             error("Jira transition to In Progress failed. Check credentials or transition ID.")
                         }
                     }
-                } 
+                }
             }
         }
 
@@ -120,7 +120,7 @@ pipeline {
                             error("Jira transition to Done failed. Check credentials or transition ID.")
                         }
                     }
-                } 
+                }
             }
         }
     }
