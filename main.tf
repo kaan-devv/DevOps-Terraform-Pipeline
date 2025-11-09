@@ -7,6 +7,7 @@ resource "aws_s3_bucket" "inventory_bucket" {
   acl    = "private"
 }
 
+/*
 resource "aws_instance" "prod_server" {
   ami           = "ami-080e1f13689e07408" 
   instance_type = "t3.micro" 
@@ -43,4 +44,4 @@ output "test_server_details" {
     public_ip     = aws_instance.test_server.public_ip
   }
 }
-
+/*
