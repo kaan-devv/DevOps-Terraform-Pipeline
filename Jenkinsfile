@@ -3,18 +3,24 @@ def extractJiraIssueKey(String commitMsg) {
     if (!commitMsg) return null
     commitMsg = commitMsg.trim().replaceAll("\\r|\\n", "")
     def matcher = (commitMsg =~ /\b([A-Z]+-\d+)\b/)
-    return matcher.find() ? matcher.group(1) : null
+    if (matcher.find()) {
+        return matcher.group(1)
+    }
+    return null
 }
 
 pipeline {
     agent any
 
     environment {
-        JIRA_SITE = "kaanylmz.atlassian.net"
-        S3_BUCKET_NAME = "kaan-inventory-bucket"
-        INVENTORY_FILE = 'inventory.json'
+        AWS_ACCESS_KEY_ID     = credentials('aws-credentials-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-credentials-id')
+        JIRA_API_TOKEN        = credentials('jira-secret-cloud')
+        JIRA_SITE             = "kaanylmz.atlassian.net"
+        S3_BUCKET_NAME        = "kaan-inventory-bucket"
+        INVENTORY_FILE        = 'inventory.json'
         JIRA_TRANSITION_ID_IN_PROGRESS = "21"
-        JIRA_TRANSITION_ID_DONE = "31"
+        JIRA_TRANSITION_ID_DONE        = "31"
     }
 
     stages {
@@ -33,6 +39,7 @@ pipeline {
                     echo "Commit message: ${commitMessage}"
 
                     def issueKey = extractJiraIssueKey(commitMessage)
+                    
                     if (!issueKey) {
                         echo "No Jira issue key found in commit message."
                         return
@@ -54,7 +61,7 @@ pipeline {
                         ).trim()
 
                         echo "Jira In Progress transition response code: ${response}"
-                        sh 'cat response.json'
+                        sh 'cat response.json || true'
 
                         if (response != "204") {
                             error("Jira transition to In Progress failed. Check credentials or transition ID.")
@@ -93,7 +100,7 @@ pipeline {
                 expression { env.JIRA_ISSUE_KEY?.trim() }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_API_TOKEN')]) {
+                script {
                     echo "Moving issue ${env.JIRA_ISSUE_KEY} to Done..."
                     def response = sh(
                         script: """curl -s -o response.json -w "%{http_code}" \
@@ -106,7 +113,7 @@ pipeline {
                     ).trim()
 
                     echo "Jira Done transition response code: ${response}"
-                    sh 'cat response.json'
+                    sh 'cat response.json || true'
 
                     if (response != "204") {
                         error("Jira transition to Done failed. Check credentials or transition ID.")
