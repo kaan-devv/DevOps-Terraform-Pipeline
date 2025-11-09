@@ -13,7 +13,6 @@ pipeline {
     stages {
         stage('1. Checkout Code') {
             steps {
-                echo "--- RUNNING v5 (Serializable Find with Debug) ---" 
                 echo "Fetching the latest code from GitHub..."
                 checkout scm
             }
@@ -24,22 +23,20 @@ pipeline {
                 script {
                     echo "Extracting Jira issue key from commit message..."
                     def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "Commit message (raw): '${commitMessage}'" 
+                    echo "Commit message: ${commitMessage}"
 
                     
-                    def cleanMsg = commitMessage.replaceAll('"', '').replaceAll("\\r|\\n", " ").trim()
-                    echo "Commit message (cleaned): '${cleanMsg}'" 
-
-                   
+                    def cleanMsg = commitMessage.replaceAll("\\r|\\n", " ").replaceAll('"', '').trim()
+                    
+                    
                     def fullMatch = cleanMsg.find(/\[[A-Z]+-[0-9]+\]/) 
-                    echo "Regex match result (fullMatch): '${fullMatch}'" 
 
                     def issueKey = null
                     if (fullMatch) {
-                   
+                        
                         issueKey = fullMatch.replaceAll("\\[|\\]", "")
                     }
-                   
+                    
                     
                     if (!issueKey) {
                         error("FATAL: No Jira issue key found. Cleaned message was: '${cleanMsg}'")
