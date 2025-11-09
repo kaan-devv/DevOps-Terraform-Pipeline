@@ -4,56 +4,41 @@ pipeline {
     environment {
         AWS_CREDS = credentials('aws-creds')
         AWS_DEFAULT_REGION = 'us-east-1'
-        ENVANTER_DOSYASI = 'inventory.json'
+        INVENTORY_FILE = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
-        JIRA_SITE_URL = 'https://kaanylmz.atlassian.net'
-        JIRA_API_AUTH = credentials('jira-token') 
+        JIRA_SITE = 'kaanylmz.atlassian.net'
+        JIRA_SECRET = 'jira-secret-cloud' 
         JIRA_ISSUE_KEY = ""
-        JIRA_TRANSITION_NAME_IN_PROGRESS = 'In Progress'
-        JIRA_TRANSITION_NAME_DONE = 'Done'
     }
 
     stages {
-        
+
         stage('1. Checkout Code') {
             steps {
-                echo "Checking out the latest code from GitHub..."
+                echo "Fetching the latest code from GitHub..."
                 checkout scm
             }
         }
 
-        stage('2. Jira: Update to In Progress') {
+        stage('2. Jira: Pipeline Started') {
             steps {
                 script {
-                    echo "Updating Jira task to 'In Progress'..."
-                    
-                    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
-                    echo "Detected Commit Message: ${commitMsg}"
-                    
+                    echo "Extracting Jira issue key from commit message..."
+                    def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "Commit message: ${commitMsg}"
+
                     def match = (commitMsg =~ /\[([A-Z]+-\d+)\]/)
-                    def jiraKey = match ? match[0][1] : null 
+                    if (match.find()) {
+                        env.JIRA_ISSUE_KEY = match.group(1)
+                        echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
-                    if (jiraKey) {
-                        env.JIRA_ISSUE_KEY = jiraKey
-                        echo "Jira Key Found: ${env.JIRA_ISSUE_KEY}"
-
-                        def jsonData = """
-                        {
-                            "transition": { "name": "${env.JIRA_TRANSITION_NAME_IN_PROGRESS}" }
-                        }
-                        """
-                        def jsonDataEscaped = jsonData.replaceAll("\"", "\\\\\"")
-                        
-                        sh "curl -s -u \"${JIRA_API_AUTH_USR}:${JIRA_API_AUTH_PSW}\" " +
-                           "-X POST " +
-                           "--header \"Content-Type: application/json\" " +
-                           "--data \"${jsonDataEscaped}\" " +
-                           "\"${env.JIRA_SITE_URL}/rest/api/2/issue/${env.JIRA_ISSUE_KEY}/transitions\""
-                           
-                        echo "Jira task ${env.JIRA_ISSUE_KEY} transitioned to In Progress (via curl)."
-                        
+                        jiraAddComment(
+                            site: env.JIRA_SITE,
+                            idOrKey: env.JIRA_ISSUE_KEY,
+                            comment: "🚀 Jenkins pipeline has started. Terraform apply is now running..."
+                        )
                     } else {
-                        echo "Jira issue key (e.g., [JIRA-101]) not found in commit message. Skipping Jira step."
+                        echo "No Jira issue key found in the commit message. Skipping Jira step."
                     }
                 }
             }
@@ -61,43 +46,39 @@ pipeline {
 
         stage('3. Terraform: Apply') {
             steps {
-                sh 'terraform init -input=false'
-                sh 'terraform apply -auto-approve -input=false'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+                    sh '''
+                        terraform init -input=false
+                        terraform apply -auto-approve -input=false
+                    '''
+                }
             }
         }
 
-        stage('4. Save Inventory (S3)') {
+        stage('4. Save Inventory to S3') {
             steps {
-                sh "terraform output -json > ${ENVANTER_DOSYASI}"
-                sh "aws s3 cp ${ENVANTER_DOSYASI} ${S3_BUCKET_NAME}/${ENVANTER_DOSYASI}"
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+                    echo "Generating current infrastructure inventory..."
+                    sh '''
+                        terraform output -json > ${INVENTORY_FILE}
+                        aws s3 cp ${INVENTORY_FILE} ${S3_BUCKET_NAME}/${INVENTORY_FILE}
+                    '''
+                    echo "Inventory uploaded to S3: ${S3_BUCKET_NAME}/${INVENTORY_FILE}"
+                }
             }
         }
 
-        stage('5. Jira: Update to Done') {
+        stage('5. Jira: Pipeline Completed') {
             steps {
                 script {
-                    echo "Updating Jira task to 'Done'..."
-                    
-                    if (env.JIRA_ISSUE_KEY && !env.JIRA_ISSUE_KEY.isEmpty()) {
-                        echo "Updating Jira Key ${env.JIRA_ISSUE_KEY} to 'Done'."
-                        
-                        def jsonData = """
-                        {
-                            "transition": { "name": "${env.JIRA_TRANSITION_NAME_DONE}" }
-                        }
-                        """
-                        def jsonDataEscaped = jsonData.replaceAll("\"", "\\\\\"")
-                        
-                        sh "curl -s -u \"${JIRA_API_AUTH_USR}:${JIRA_API_AUTH_PSW}\" " +
-                           "-X POST " +
-                           "--header \"Content-Type: application/json\" " +
-                           "--data \"${jsonDataEscaped}\" " +
-                           "\"${env.JIRA_SITE_URL}/rest/api/2/issue/${env.JIRA_ISSUE_KEY}/transitions\""
-
-                        echo "Jira task ${env.JIRA_ISSUE_KEY} transitioned to Done (via curl)."
-                        
+                    if (env.JIRA_ISSUE_KEY?.trim()) {
+                        jiraAddComment(
+                            site: env.JIRA_SITE,
+                            idOrKey: env.JIRA_ISSUE_KEY,
+                            comment: "✅ Jenkins pipeline has completed successfully. Terraform apply and S3 upload are done."
+                        )
                     } else {
-                        echo "No Jira issue key was tracked. Skipping this step."
+                        echo "No Jira issue key found. Skipping Jira final update."
                     }
                 }
             }
