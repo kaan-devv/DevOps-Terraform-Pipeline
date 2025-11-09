@@ -1,24 +1,28 @@
+@NonCPS
+def extractJiraIssueKey(String commitMsg) {
+    if (!commitMsg) return null
+    
+  
+    def cleanMsg = commitMsg.replaceAll("\\r|\\n", " ").trim()
+    
+    
+    def matcher = (cleanMsg =~ /\[([A-Z]+-[0-9]+)\]/) 
+    
+    if (matcher.find()) {
+        return matcher.group(1) 
+    }
+    return null
+}
+
+
 pipeline {
     agent any
-
-    def extractJiraIssueKey(String commitMsg) {
-        if (!commitMsg) return null
-        
-        def cleanMsg = commitMsg.replaceAll("\\r|\\n", " ").trim()
-        
-        def matcher = (cleanMsg =~ /\[([A-Z]+-[0-9]+)\]/) 
-        
-        if (matcher.find()) {
-            return matcher.group(1) 
-        }
-        return null
-    }
 
     environment {
         JIRA_SITE = "kaanylmz.atlassian.net"
         S3_BUCKET_NAME = "kaan-inventory-bucket"
         INVENTORY_FILE = 'inventory.json'
-        JIRA_TRANSITION_ID_IN_PROGRESS = "21"
+        JIRA_TRANSIAITIO_ID_IN_PROGRESS = "21"
         JIRA_TRANSITION_ID_DONE = "31"
         JIRA_ISSUE_KEY = ""
     }
@@ -38,6 +42,7 @@ pipeline {
                     def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMessage}"
 
+                
                     def issueKey = extractJiraIssueKey(commitMessage)
                     
                     if (!issueKey) {
@@ -83,7 +88,7 @@ pipeline {
 
         stage('4. Save Inventory to S3') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesBinding', credentialsId: 'aws-creds']]) {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
                     echo "Generating current infrastructure inventory..."
                     
                     sh '''
