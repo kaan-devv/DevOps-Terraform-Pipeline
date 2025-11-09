@@ -5,16 +5,16 @@ pipeline {
         AWS_CREDS = credentials('aws-creds')
         AWS_DEFAULT_REGION = 'us-east-1'
         ENVANTER_DOSYASI = 'inventory.json'
-        S3_BUCKET_NAME = 's3://kaan-inventory-bucket' 
-        JIRA_SITE = 'https://kaanylmz.atlassian.net' 
+        S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
+        JIRA_SITE = 'https://kaanylmz.atlassian.net'
         JIRA_ISSUE_KEY = ""
     }
 
     stages {
         
-        stage('1. Kodu Al (Checkout)') {
+        stage('1. Checkout Code') {
             steps {
-                echo "GitHub'dan en güncel kod alınıyor..."
+                echo "Checking out the latest code from GitHub..."
                 checkout scm
             }
         }
@@ -22,26 +22,35 @@ pipeline {
         stage('2. Jira: Update to In Progress') {
             steps {
                 script {
-                    echo "Jira görevi 'In Progress' (Yapılıyor) olarak güncelleniyor..."
-                
-                    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
-                    echo "Algılanan Commit Mesajı: ${commitMsg}"
+                    echo "Updating Jira task to 'In Progress'..."
                     
-                    def matcher = (commitMsg =~ "\\[([A-Z]+-\\d+)\\]")
-    
-                    if (matcher.find()) {
-                        env.JIRA_ISSUE_KEY = matcher[0][1] 
-                        echo "Jira Kodu Bulundu: ${env.JIRA_ISSUE_KEY}"
-                        
-                        jiraTransitionIssue(
-                            issueKey: env.JIRA_ISSUE_KEY,
-                            siteName: env.JIRA_SITE,
-                            transitionName: 'In Progress', 
-                            comment: "Pipeline başladı. Terraform apply çalıştırılıyor...",
-                            credentialsId: 'jira-token'
-                        )
-                    } else {
-                        echo "Commit mesajında Jira görev kodu (örn: [JIRA-101]) bulunamadı, Jira adımı atlanıyor."
+                    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
+                    echo "Detected Commit Message: ${commitMsg}"
+                    
+                    try {
+                        if (commitMsg.contains('[') && commitMsg.contains(']')) {
+                            def parca1 = commitMsg.split('\\[', 2)[1]
+                            def jiraKodu = parca1.split('\\]', 2)[0]
+
+                            if (jiraKodu.matches("^[A-Z]+-\\d+$")) {
+                                env.JIRA_ISSUE_KEY = jiraKodu
+                                echo "Jira Key Found: ${env.JIRA_ISSUE_KEY}"
+                                
+                                jiraTransitionIssue(
+                                    issueKey: env.JIRA_ISSUE_KEY,
+                                    siteName: env.JIRA_SITE,
+                                    transitionName: 'In Progress', 
+                                    comment: "Pipeline started. Running terraform apply...",
+                                    credentialsId: 'jira-token'
+                                )
+                            } else {
+                                echo "Jira key format ([PROJ-123]) not found. Skipping Jira step."
+                            }
+                        } else {
+                            echo "Jira issue key (e.g., [JIRA-101]) not found in commit message. Skipping Jira step."
+                        }
+                    } catch (Exception e) {
+                        echo "Error while splitting Jira key: ${e.message}. Skipping step."
                     }
                 }
             }
@@ -54,12 +63,12 @@ pipeline {
             }
         }
 
-        stage('4. Envanteri Kaydet (S3)') {
+        stage('4. Save Inventory (S3)') {
             steps {
-                echo "En güncel envanter listesi oluşturuluyor..."
+                echo "Generating latest inventory file..."
                 sh "terraform output -json > ${ENVANTER_DOSYASI}"
                 
-                echo "Envanter listesi S3'e yükleniyor: ${S3_BUCKET_NAME}/${ENVANTER_DOSYASI}"
+                echo "Uploading inventory file to S3: ${S3_BUCKET_NAME}/${ENVANTER_DOSYASI}"
                 sh "aws s3 cp ${ENVANTER_DOSYASI} ${S3_BUCKET_NAME}/${ENVANTER_DOSYASI}"
             }
         }
@@ -67,19 +76,19 @@ pipeline {
         stage('5. Jira: Update to Done') {
             steps {
                 script {
-                    echo "Jira görevi 'Done' (Bitti) olarak güncelleniyor..."
+                    echo "Updating Jira task to 'Done'..."
                     
-                    if (env.JIRA_ISSUE_KEY) {
-                        echo "Jira Kodu ${env.JIRA_ISSUE_KEY} 'Done' olarak güncelleniyor."
+                    if (env.JIRA_ISSUE_KEY && !env.JIRA_ISSUE_KEY.isEmpty()) {
+                        echo "Updating Jira Key ${env.JIRA_ISSUE_KEY} to 'Done'."
                         jiraTransitionIssue(
                             issueKey: env.JIRA_ISSUE_KEY,
                             siteName: env.JIRA_SITE,
                             transitionName: 'Done',
-                            comment: "Pipeline başarıyla tamamlandı. Değişiklikler uygulandı. Panel güncellendi.",
+                            comment: "Pipeline finished successfully. Changes applied. Panel updated.",
                             credentialsId: 'jira-token'
                         )
                     } else {
-                        echo "Takip edilecek bir Jira görevi bulunmadığı için bu adım atlanıyor."
+                        echo "No Jira issue key was tracked. Skipping this step."
                     }
                 }
             }
