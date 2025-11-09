@@ -1,14 +1,13 @@
 @NonCPS
 def extractJiraIssueKey(String commitMsg) {
     if (!commitMsg) return null
-    commitMsg = commitMsg.trim().replaceAll("\\r|\\n", "")
     
-
-    def matcher = (commitMsg =~ /\[([A-Z]+-\d+)\]/) 
+    def matcher = (commitMsg =~ /(?m).*?\[([A-Z]+-[0-9]+)\].*?/) 
     
     if (matcher.find()) {
-        return matcher.group(1)
+        return matcher.group(1) 
     }
+    
     return null
 }
 
@@ -42,6 +41,7 @@ pipeline {
                     def issueKey = extractJiraIssueKey(commitMessage)
                     
                     if (!issueKey) {
+
                         echo "No Jira issue key found in commit message."
                         return
                     }
@@ -92,7 +92,7 @@ pipeline {
                         terraform output -json > ${INVENTORY_FILE}
                         aws s3 cp ${INVENTORY_FILE} s3://${S3_BUCKET_NAME}/${INVENTORY_FILE}
                     '''
-                    echo "Inventory uploaded to S3: s3://${S3_BUCKET_NAME}/${INVENTORY_FILE}"
+                    echo "Inventory uploaded to s3://${S3_BUCKET_NAME}/${INVENTORY_FILE}"
                 }
             }
         }
