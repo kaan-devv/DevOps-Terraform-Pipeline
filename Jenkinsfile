@@ -6,7 +6,7 @@ pipeline {
         AWS_DEFAULT_REGION = 'us-east-1'
         ENVANTER_DOSYASI = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
-        JIRA_SITE = 'https://kaanylmz.atlassian.net'
+        JIRA_SITE = 'https://kaanylmz.atlassian.net' 
         JIRA_ISSUE_KEY = ""
     }
 
@@ -23,15 +23,20 @@ pipeline {
             steps {
                 script {
                     echo "Jira görevi 'In Progress' (Yapılıyor) olarak güncelleniyor..."
-                    def matcher = (env.CHANGE_MESSAGE ?: "").find("\\[([A-Z]+-\\d+)\\]")
+                    
+                    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
+                    echo "Algılanan Commit Mesajı: ${commitMsg}"
+                    
+                    def matcher = commitMsg.find("\\[([A-Z]+-\\d+)\\]")
                     
                     if (matcher) {
                         env.JIRA_ISSUE_KEY = matcher[1]
+                        echo "Jira Kodu Bulundu: ${env.JIRA_ISSUE_KEY}"
                         
                         jiraTransitionIssue(
                             issueKey: env.JIRA_ISSUE_KEY,
                             siteName: env.JIRA_SITE,
-                            transitionName: 'In Progress',
+                            transitionName: 'In Progress', 
                             comment: "Pipeline başladı. Terraform apply çalıştırılıyor...",
                             credentialsId: 'jira-token'
                         )
@@ -65,6 +70,7 @@ pipeline {
                     echo "Jira görevi 'Done' (Bitti) olarak güncelleniyor..."
                     
                     if (env.JIRA_ISSUE_KEY) {
+                        echo "Jira Kodu ${env.JIRA_ISSUE_KEY} 'Done' olarak güncelleniyor."
                         jiraTransitionIssue(
                             issueKey: env.JIRA_ISSUE_KEY,
                             siteName: env.JIRA_SITE,
