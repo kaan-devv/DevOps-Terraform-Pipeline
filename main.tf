@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "inventory_bucket" {
-  bucket = "kaan-presentation-bucket" 
+  bucket = "kaan-inventory-bucket" 
   acl    = "private"
 }
 
