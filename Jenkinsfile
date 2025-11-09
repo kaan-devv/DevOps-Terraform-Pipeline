@@ -7,7 +7,7 @@ pipeline {
         INVENTORY_FILE = 'inventory.json'
         S3_BUCKET_NAME = 's3://kaan-inventory-bucket'
         JIRA_SITE = 'kaanylmz.atlassian.net'
-        JIRA_SECRET = 'jira-secret-cloud'
+        JIRA_SECRET = 'jira-secret-cloud' // Jira Cloud secret ID
         JIRA_ISSUE_KEY = ""
     }
 
@@ -27,10 +27,9 @@ pipeline {
                     def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMsg}"
 
-                    // ✅ safer regex (string only)
-                    def issueKey = (commitMsg =~ /\[([A-Z]+-\d+)\]/).findAll()?.first()?.replaceAll(/[\[\]]/, "")
-                    if (issueKey) {
-                        env.JIRA_ISSUE_KEY = issueKey
+                    def matcher = (commitMsg =~ /\[([A-Z]+-\d+)\]/)
+                    if (matcher.find()) {
+                        env.JIRA_ISSUE_KEY = matcher.group(1)
                         echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
 
                         jiraSendBuildInfo(
@@ -41,7 +40,7 @@ pipeline {
                             issueKeys: [env.JIRA_ISSUE_KEY]
                         )
                     } else {
-                        echo "No Jira issue key found in the commit message. Skipping Jira step."
+                        echo "No Jira issue key found in the commit message. Skipping Jira update."
                     }
                 }
             }
@@ -77,12 +76,12 @@ pipeline {
                     if (env.JIRA_ISSUE_KEY?.trim()) {
                         jiraSendDeploymentInfo(
                             site: env.JIRA_SITE,
-                            pipelineId: env.JOB_NAME,
-                            buildNumber: env.BUILD_NUMBER,
-                            environmentType: 'development',
-                            state: 'successful',
+                            environmentId: 'prod-env',
+                            environmentName: 'Production',
+                            environmentType: 'production',
                             issueKeys: [env.JIRA_ISSUE_KEY]
                         )
+                        echo "Deployment info sent to Jira Cloud for issue ${env.JIRA_ISSUE_KEY}."
                     } else {
                         echo "No Jira issue key found. Skipping Jira deployment update."
                     }
