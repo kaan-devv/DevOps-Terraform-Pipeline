@@ -29,11 +29,10 @@ pipeline {
                     
                     try {
                         if (commitMsg.contains('[') && commitMsg.contains(']')) {
-                        
                             def parca1 = commitMsg.split('\\[', 2)[1]
                             def jiraKodu = parca1.split('\\]', 2)[0]
 
-                            if (jiraKodu.matches("^[A-Z]+-\\d+$")) {
+                            if (jiraKodu.matches('^[A-Z]+-\\d+$')) {
                                 env.JIRA_ISSUE_KEY = jiraKodu
                                 echo "Jira Key Found: ${env.JIRA_ISSUE_KEY}"
                                 
