@@ -1,18 +1,18 @@
-@NonCPS
-def extractJiraIssueKey(String commitMsg) {
-    if (!commitMsg) return null
-    
-    def matcher = (commitMsg =~ /(?m).*?\[([A-Z]+-[0-9]+)\].*?/) 
-    
-    if (matcher.find()) {
-        return matcher.group(1) 
-    }
-    
-    return null
-}
-
 pipeline {
     agent any
+
+    def extractJiraIssueKey(String commitMsg) {
+        if (!commitMsg) return null
+        
+        def cleanMsg = commitMsg.replaceAll("\\r|\\n", " ").trim()
+        
+        def matcher = (cleanMsg =~ /\[([A-Z]+-[0-9]+)\]/) 
+        
+        if (matcher.find()) {
+            return matcher.group(1) 
+        }
+        return null
+    }
 
     environment {
         JIRA_SITE = "kaanylmz.atlassian.net"
@@ -83,7 +83,7 @@ pipeline {
 
         stage('4. Save Inventory to S3') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+                withCredentials([[$class: 'AmazonWebServicesBinding', credentialsId: 'aws-creds']]) {
                     echo "Generating current infrastructure inventory..."
                     
                     sh '''
