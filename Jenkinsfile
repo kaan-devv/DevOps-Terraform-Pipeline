@@ -13,14 +13,13 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('aws-credentials-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-credentials-id')
-        JIRA_API_TOKEN        = credentials('jira-secret-cloud')
-        JIRA_SITE             = "kaanylmz.atlassian.net"
-        S3_BUCKET_NAME        = "kaan-inventory-bucket"
-        INVENTORY_FILE        = 'inventory.json'
+        JIRA_API_TOKEN = credentials('jira-token') 
+        JIRA_SITE = "kaanylmz.atlassian.net"
+        S3_BUCKET_NAME = "kaan-inventory-bucket"
+        INVENTORY_FILE = 'inventory.json'
         JIRA_TRANSITION_ID_IN_PROGRESS = "21"
-        JIRA_TRANSITION_ID_DONE        = "31"
+        JIRA_TRANSITION_ID_DONE = "31"
+        JIRA_ISSUE_KEY = ""
     }
 
     stages {
@@ -38,7 +37,7 @@ pipeline {
                     def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "Commit message: ${commitMessage}"
 
-                    def issueKey = extractJiraIssueKey(commitMessage)
+                    def issueKey = extractJIRA_ISSUE_KEY(commitMessage)
                     
                     if (!issueKey) {
                         echo "No Jira issue key found in commit message."
@@ -47,12 +46,12 @@ pipeline {
 
                     env.JIRA_ISSUE_KEY = issueKey
                     echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
-
-                    withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_API_TOKEN')]) {
+                    
+                    withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
                         def response = sh(
                             script: """curl -s -o response.json -w "%{http_code}" \
-                            -u "$JIRA_USER:$JIRA_API_TOKEN" \
+                            -u "$JIRA_USER:$JIRA_TOKEN" \
                             -H "Accept: application/json" \
                             -H "Content-Type: application/json" \
                             --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_IN_PROGRESS}" } }' \
@@ -86,6 +85,7 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
                     echo "Generating current infrastructure inventory..."
+                    
                     sh '''
                         terraform output -json > ${INVENTORY_FILE}
                         aws s3 cp ${INVENTORY_FILE} s3://${S3_BUCKET_NAME}/${INVENTORY_FILE}
@@ -100,11 +100,11 @@ pipeline {
                 expression { env.JIRA_ISSUE_KEY?.trim() }
             }
             steps {
-                script {
+                withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
                     echo "Moving issue ${env.JIRA_ISSUE_KEY} to Done..."
                     def response = sh(
                         script: """curl -s -o response.json -w "%{http_code}" \
-                        -u "$JIRA_USER:$JIRA_API_TOKEN" \
+                        -u "$JIRA_USER:$JIRA_TOKEN" \
                         -H "Accept: application/json" \
                         -H "Content-Type: application/json" \
                         --data '{ "transition": { "id": "${JIRA_TRANSITION_ID_DONE}" } }' \
