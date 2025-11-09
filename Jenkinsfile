@@ -22,28 +22,21 @@ pipeline {
             steps {
                 script {
                     echo "Extracting Jira issue key from commit message..."
-                    def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    echo "Commit message: ${commitMessage}"
+                    
+                    def issueKey = sh(
+                        script: "git log -1 --pretty=%B | grep -oP '\\[\\K[A-Z]+-[0-9]+(?=\\])' || true",
+                        returnStdout: true
+                    ).trim()
+                  
 
-                    
-                    def cleanMsg = commitMessage.replaceAll("\\r|\\n", " ").replaceAll('"', '').trim()
-                    
-                    
-                    def fullMatch = cleanMsg.find(/\[[A-Z]+-[0-9]+\]/) 
-
-                    def issueKey = null
-                    if (fullMatch) {
-                        
-                        issueKey = fullMatch.replaceAll("\\[|\\]", "")
-                    }
-                    
+                    echo "Commit message was read."
                     
                     if (!issueKey) {
-                        error("FATAL: No Jira issue key found. Cleaned message was: '${cleanMsg}'")
+                        error("FATAL: No Jira issue key found in commit message.")
                     }
 
                     env.JIRA_ISSUE_KEY = issueKey
-                    echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}"
+                    echo "Detected Jira issue: ${env.JIRA_ISSUE_KEY}" 
 
                     withCredentials([usernamePassword(credentialsId: 'jira-token', usernameVariable: 'JIRA_USER', passwordVariable: 'JIRA_TOKEN')]) {
                         echo "Moving issue ${env.JIRA_ISSUE_KEY} to In Progress..."
