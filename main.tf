@@ -9,7 +9,7 @@ resource "aws_s3_bucket" "inventory_bucket" {
 
 resource "aws_instance" "prod_server" {
   ami           = "ami-080e1f13689e07408" 
-  instance_type = "t3.micro" 
+  instance_type = "t3.small" 
   tags = {
     Name        = "prod-server"
     Service     = "inventory-panel-prod" 
