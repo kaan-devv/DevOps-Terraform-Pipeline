@@ -18,7 +18,7 @@ resource "aws_instance" "prod_server" {
 
 output "prod_server_details" {
   value = {
-    service_name  = aws_instance.prod_server_v2.tags.Service
+    service_name  = aws_instance.prod_server.tags.Service
     instance_id   = aws_instance.prod_server.id
     instance_type = aws_instance.prod_server.instance_type
     public_ip     = aws_instance.prod_server.public_ip
