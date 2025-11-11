@@ -11,7 +11,7 @@ resource "aws_instance" "prodv2_server" {
   ami           = "ami-080e1f13689e07408" 
   instance_type = "t3.micro" 
   tags = {
-    Name        = "prodv2-server"
+    Name        = "prod-server"
     Service     = "inventory-panel-prod" 
   }
 }
